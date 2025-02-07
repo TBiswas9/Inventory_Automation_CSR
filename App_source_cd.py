@@ -1,3 +1,6 @@
+# pyinstaller --onefile -w Filename.py
+# pip install pyinstaller
+
 import tkinter as tk
 from tkinter import filedialog as fd
 from tkinter import messagebox
@@ -73,27 +76,37 @@ class InventoryGUI:
 
     def run_cat(self,file_Name1, file_Name2):
         try:
-            Aging = pd.read_excel(file_Name1, sheet_name='Aging012425')
+            #Aging = pd.read_excel(file_Name1)#, sheet_name='Aging012425')
+            Aging = pd.read_csv(file_Name1)
             Guarantor = pd.read_csv(file_Name2)
             Guarantor = Guarantor[['Per Nbr','Acct Nbr']]
             Guarantor = Guarantor.copy()
             Guarantor.drop_duplicates(inplace=True)
             Aging = Aging[['Name','Per Nbr','Birth Dt','Pat Amt']]
+            Aging['Pat Amt'] = '$'+Aging['Pat Amt'].astype(str)
+            Aging['Pat Amt'] = Aging.loc[:,'Pat Amt'].str.replace(
+                '$', "", regex=False)\
+                    .str.replace('(', "-", regex=False)\
+                        .str.replace(')', "", regex=False)\
+                            .str.replace(',', "", regex=False)\
+                                .str.replace(" ","", regex=False)
+            Aging['Pat Amt'] = Aging['Pat Amt'].astype(float)
             Pat_AR = Aging[Aging['Pat Amt']>0]
             Pat_AR = Pat_AR.groupby(by=['Name','Per Nbr','Birth Dt'])['Pat Amt'].sum().reset_index()
             Pat_AR = Pat_AR.merge(Guarantor[['Per Nbr','Acct Nbr']], how='left', on ='Per Nbr')
             CSR = Pat_AR.groupby(by = ['Name','Birth Dt','Acct Nbr'])['Pat Amt'].sum().reset_index(name = 'Bal_Amt')
-            CSR[['Pat Last_Name', 'Pat First_Name']] = CSR['Name'].str.split(",",n=1,expand=True,)
+            CSR[['Patient_Last_Name','Patient_First_Name']] = CSR['Name'].str.split(",",n=1,expand=True,)
             CSR = CSR.drop(CSR[CSR['Name'].str.startswith("**")].index, axis=0)
             CSR = CSR.drop(CSR[CSR['Name'].str.startswith("ZZZ")].index, axis=0)
+            CSR.rename(columns={'Acct Nbr':'Person_Account_Number','Birth Dt':'Patient_DOB','Bal_Amt':'Balance_Amount'}, inplace=True)
             CSR['Facility code']  = 'PHMG'
-            CSR = CSR[['Pat Last_Name', 'Pat First_Name', 'Acct Nbr','Birth Dt','Bal_Amt', 'Facility code']]
+            CSR = CSR[['Facility code','Patient_Last_Name','Patient_First_Name','Person_Account_Number','Patient_DOB','Balance_Amount']]
             now = datetime.now()
             now_str = now.strftime('%Y-%m-%d-%H-%M')
             base_location = os.getcwd()
             output_path = base_location + "\\" + "CSR_" + now_str + ".csv"
             CSR.to_csv(output_path, index=False)
-            messagebox.showinfo("Success", f"Report saved successfully : {output_path}")        
+            messagebox.showinfo("Success", f"Report saved successfully : {output_path}")
         
         except Exception as e:
             messagebox.showerror('Error', f"Error occurred: {str(e)}")
