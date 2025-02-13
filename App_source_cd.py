@@ -79,10 +79,13 @@ class InventoryGUI:
             #Aging = pd.read_excel(file_Name1)#, sheet_name='Aging012425')
             Aging = pd.read_csv(file_Name1)
             Guarantor = pd.read_csv(file_Name2)
-            Guarantor = Guarantor[['Per Nbr','Acct Nbr']]
+            Guarantor = Guarantor[['E/I','Prac Name','Acct Nbr']]
+            Guarantor['E/I']=Guarantor['E/I'].astype(float)
+            Guarantor['UID'] = Guarantor[['E/I','Prac Name']].astype(str).agg("-".join, axis=1)
+            Aging['UID'] = Aging[['E/I/A/B','Prac Name']].astype(str).agg("-".join, axis=1)
             Guarantor = Guarantor.copy()
             Guarantor.drop_duplicates(inplace=True)
-            Aging = Aging[['Name','Per Nbr','Birth Dt','Pat Amt']]
+            Aging = Aging[['Name','Birth Dt','Pat Amt','UID','Prac Name']]
             Aging['Pat Amt'] = '$'+Aging['Pat Amt'].astype(str)
             Aging['Pat Amt'] = Aging.loc[:,'Pat Amt'].str.replace(
                 '$', "", regex=False)\
@@ -91,20 +94,23 @@ class InventoryGUI:
                             .str.replace(',', "", regex=False)\
                                 .str.replace(" ","", regex=False)
             Aging['Pat Amt'] = Aging['Pat Amt'].astype(float)
-            Pat_AR = Aging[Aging['Pat Amt']>0]
-            Pat_AR = Pat_AR.groupby(by=['Name','Per Nbr','Birth Dt'])['Pat Amt'].sum().reset_index()
-            Pat_AR = Pat_AR.merge(Guarantor[['Per Nbr','Acct Nbr']], how='left', on ='Per Nbr')
+            Pat_AR = Aging[Aging['Pat Amt']!=0]
+            Pat_AR = Pat_AR.groupby(by=['Name','Birth Dt','UID','Prac Name'])['Pat Amt'].sum().reset_index()
+            Pat_AR = Pat_AR.merge(Guarantor[['UID','Acct Nbr']], how='left', on ='UID')
             CSR = Pat_AR.groupby(by = ['Name','Birth Dt','Acct Nbr'])['Pat Amt'].sum().reset_index(name = 'Bal_Amt')
+            Lookup = ('ZZZ','ZZz','ZzZ','zZZ','Zzz','zZz','zzZ','zzz','**')
+            CSR=CSR[~CSR['Name'].str.startswith(Lookup)]            
             CSR[['Patient_Last_Name','Patient_First_Name']] = CSR['Name'].str.split(",",n=1,expand=True,)
-            CSR = CSR.drop(CSR[CSR['Name'].str.startswith("**")].index, axis=0)
-            CSR = CSR.drop(CSR[CSR['Name'].str.startswith("ZZZ")].index, axis=0)
+            #CSR = CSR.drop(CSR[CSR['Name'].str.startswith("**")].index, axis=0)
+            #CSR = CSR.drop(CSR[CSR['Name'].str.startswith("ZZZ")].index, axis=0)
             CSR.rename(columns={'Acct Nbr':'Person_Account_Number','Birth Dt':'Patient_DOB','Bal_Amt':'Balance_Amount'}, inplace=True)
             CSR['Facility code']  = 'PHMG'
             CSR = CSR[['Facility code','Patient_Last_Name','Patient_First_Name','Person_Account_Number','Patient_DOB','Balance_Amount']]
+            CSR = CSR[CSR['Balance_Amount']>0]
             now = datetime.now()
-            now_str = now.strftime('%Y-%m-%d-%H-%M')
+            now_str = now.strftime('%m%d%Y')
             base_location = os.getcwd()
-            output_path = base_location + "\\" + "CSR_" + now_str + ".csv"
+            output_path = base_location + "\\" + "PHMG_CA_" + now_str + ".csv"
             CSR.to_csv(output_path, index=False)
             messagebox.showinfo("Success", f"Report saved successfully : {output_path}")
         
